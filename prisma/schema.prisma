@@ -1,0 +1,279 @@
+// Prisma Schema for HRP Marketplace
+// SQLite for development, PostgreSQL for production
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// LOCATION MODEL
+// ============================================
+model Location {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   // 'country' or 'city'
+  parentId  String?
+  parent    Location? @relation("LocationHierarchy", fields: [parentId], references: [id])
+  children  Location[] @relation("LocationHierarchy")
+  
+  photographers   Photographer[]
+  videographers   Videographer[]
+  equipment       Equipment[]
+  transport       Transport[]
+  bookings        Booking[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// USER MODEL (Admin & Photographer roles only)
+// ============================================
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  name          String
+  role          String   @default("PHOTOGRAPHER") // ADMIN, PHOTOGRAPHER
+  
+  photographer  Photographer?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================
+// PHOTOGRAPHER MODEL
+// ============================================
+model Photographer {
+  id              String   @id @default(cuid())
+  userId          String?  @unique
+  user            User?    @relation(fields: [userId], references: [id])
+  
+  name            String
+  bio             String?
+  phone           String?
+  instagram       String?
+  
+  grade           String   @default("C") // A, B, C, D, E
+  hourlyRate      Float
+  dailyRate       Float
+  
+  profileImage    String?
+  
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id])
+  
+  status          String   @default("PUBLISHED") // DRAFT, PUBLISHED
+  available       Boolean  @default(true)
+  
+  bookingItems    BookingItem[]
+  availability    Availability[]
+  portfolios      Portfolio[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// VIDEOGRAPHER MODEL
+// ============================================
+model Videographer {
+  id              String   @id @default(cuid())
+  
+  name            String
+  bio             String?
+  phone           String?
+  instagram       String?
+  
+  grade           String   @default("C") // A, B, C, D, E
+  hourlyRate      Float
+  dailyRate       Float
+  
+  profileImage    String?
+  
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id])
+  
+  status          String   @default("PUBLISHED") // DRAFT, PUBLISHED
+  available       Boolean  @default(true)
+  
+  bookingItems    BookingItem[]
+  portfolios      Portfolio[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// EQUIPMENT MODEL
+// ============================================
+model Equipment {
+  id              String   @id @default(cuid())
+  
+  name            String
+  description     String?
+  category        String   // camera, lens, lighting, drone, accessory
+  brand           String?
+  
+  dailyRate       Float
+  quantity        Int      @default(1)
+  availableQty    Int      @default(1)
+  
+  image           String?
+  features        String?  // JSON array of features
+  
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id])
+  
+  status          String   @default("AVAILABLE") // AVAILABLE, UNAVAILABLE
+  
+  bookingItems    BookingItem[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// TRANSPORT MODEL
+// ============================================
+model Transport {
+  id              String   @id @default(cuid())
+  
+  name            String
+  description     String?
+  vehicleType     String   // van, suv, minibus, car
+  
+  capacity        Int      // passenger capacity
+  dailyRate       Float
+  
+  image           String?
+  features        String?  // JSON array of features
+  
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id])
+  
+  status          String   @default("AVAILABLE") // AVAILABLE, UNAVAILABLE
+  
+  bookingItems    BookingItem[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// AVAILABILITY MODEL
+// ============================================
+model Availability {
+  id              String   @id @default(cuid())
+  
+  photographerId  String
+  photographer    Photographer @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  
+  date            DateTime
+  isAvailable     Boolean  @default(true)
+  isBooked        Boolean  @default(false)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([photographerId, date])
+}
+
+// ============================================
+// BOOKING MODEL
+// ============================================
+model Booking {
+  id              String   @id @default(cuid())
+  bookingCode     String   @unique
+  
+  // Customer info (guest checkout)
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  
+  // Event details
+  eventDate       DateTime
+  eventDetails    String?
+  specialRequests String?
+  
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id])
+  
+  // Pricing
+  subtotal        Float
+  tax             Float    @default(0)
+  total           Float
+  
+  // Status
+  status          String   @default("PENDING") // PENDING, CONFIRMED, CANCELLED, COMPLETED
+  paymentStatus   String   @default("UNPAID")  // UNPAID, PAID, REFUNDED
+  
+  items           BookingItem[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// BOOKING ITEM MODEL (Polymorphic)
+// ============================================
+model BookingItem {
+  id              String   @id @default(cuid())
+  
+  bookingId       String
+  booking         Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  
+  // Polymorphic relations (only one will be set)
+  photographerId  String?
+  photographer    Photographer? @relation(fields: [photographerId], references: [id])
+  
+  videographerId  String?
+  videographer    Videographer? @relation(fields: [videographerId], references: [id])
+  
+  equipmentId     String?
+  equipment       Equipment? @relation(fields: [equipmentId], references: [id])
+  
+  transportId     String?
+  transport       Transport? @relation(fields: [transportId], references: [id])
+  
+  // Item details
+  itemType        String   // photographer, videographer, equipment, transport
+  itemName        String
+  quantity        Int      @default(1)
+  unitPrice       Float
+  totalPrice      Float
+  
+  // Duration
+  duration        Int      @default(1)  // in days
+  durationType    String   @default("day") // hour, day
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// PORTFOLIO MODEL
+// ============================================
+model Portfolio {
+  id              String   @id @default(cuid())
+  
+  photographerId  String?
+  photographer    Photographer? @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  
+  videographerId  String?
+  videographer    Videographer? @relation(fields: [videographerId], references: [id], onDelete: Cascade)
+  
+  imageUrl        String         // Image URL (for photographer or video thumbnail)
+  videoUrl        String?        // External video link (YouTube, Vimeo) - for videographer
+  caption         String?
+  order           Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
