@@ -36,29 +36,59 @@ export default function CheckoutPage() {
         e.preventDefault();
         setIsSubmitting(true);
 
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        try {
+            // Generate booking code
+            const bookingCode = generateBookingCode();
 
-        // Generate booking code
-        const bookingCode = generateBookingCode();
+            // Prepare booking data
+            const bookingData = {
+                bookingCode,
+                customerName: formData.customerName,
+                customerEmail: formData.customerEmail,
+                customerPhone: formData.customerPhone,
+                eventDate: formData.eventDate,
+                eventLocation: formData.eventLocation,
+                eventDetails: formData.eventDetails,
+                specialRequests: formData.specialRequests,
+                items: cart,
+                subtotal: total,
+                tax,
+                total: grandTotal,
+            };
 
-        // Store booking data in localStorage for confirmation page
-        const bookingData = {
-            bookingCode,
-            ...formData,
-            items: cart,
-            subtotal: total,
-            tax,
-            total: grandTotal,
-            createdAt: new Date().toISOString(),
-        };
-        localStorage.setItem("hrp-last-booking", JSON.stringify(bookingData));
+            // Save to database via API
+            const response = await fetch('/api/bookings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(bookingData),
+            });
 
-        // Clear cart
-        clearCart();
+            if (!response.ok) {
+                throw new Error('Failed to create booking');
+            }
 
-        // Redirect to confirmation
-        router.push(`/confirmation/${bookingCode}`);
+            // Store booking data in localStorage for confirmation page
+            const localBookingData = {
+                bookingCode,
+                ...formData,
+                items: cart,
+                subtotal: total,
+                tax,
+                total: grandTotal,
+                createdAt: new Date().toISOString(),
+            };
+            localStorage.setItem("hrp-last-booking", JSON.stringify(localBookingData));
+
+            // Clear cart
+            clearCart();
+
+            // Redirect to confirmation
+            router.push(`/confirmation/${bookingCode}`);
+        } catch (error) {
+            console.error('Error creating booking:', error);
+            alert('Failed to create booking. Please try again.');
+            setIsSubmitting(false);
+        }
     };
 
     // Show empty cart message instead of redirecting during render

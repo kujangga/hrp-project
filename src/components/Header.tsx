@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ShoppingCart, Menu, X, Camera, Video, Package, Truck } from "lucide-react";
+import { ShoppingCart, Menu, X, Camera, Video, Package, Truck, Search } from "lucide-react";
 import { useState } from "react";
 import { useBooking } from "@/contexts/BookingContext";
 
@@ -54,7 +54,16 @@ export default function Header() {
                     </nav>
 
                     {/* Right Side */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        {/* Track Booking Button */}
+                        <Link
+                            href="/track"
+                            className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-sm text-white/70 hover:text-white"
+                        >
+                            <Search className="w-4 h-4" />
+                            <span>Track</span>
+                        </Link>
+
                         {/* Cart Button */}
                         <Link
                             href="/cart"
@@ -92,8 +101,8 @@ export default function Header() {
                                     href={link.href}
                                     onClick={() => setMobileMenuOpen(false)}
                                     className={`flex items-center gap-3 py-3 px-4 rounded-xl transition-colors ${isActive
-                                            ? "bg-white/10 text-white"
-                                            : "text-white/70 hover:text-white hover:bg-white/5"
+                                        ? "bg-white/10 text-white"
+                                        : "text-white/70 hover:text-white hover:bg-white/5"
                                         }`}
                                 >
                                     <Icon className="w-5 h-5" />
@@ -101,6 +110,15 @@ export default function Header() {
                                 </Link>
                             );
                         })}
+                        {/* Track Booking - Mobile */}
+                        <Link
+                            href="/track"
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="flex items-center gap-3 py-3 px-4 rounded-xl text-white/70 hover:text-white hover:bg-white/5 transition-colors mt-2 border-t border-white/10 pt-5"
+                        >
+                            <Search className="w-5 h-5" />
+                            Track Booking
+                        </Link>
                     </nav>
                 )}
             </div>

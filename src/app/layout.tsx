@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { BookingProvider } from "@/contexts/BookingContext";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
 
 const inter = Inter({
     subsets: ["latin"],
@@ -26,13 +24,10 @@ export default function RootLayout({
         <html lang="en" className={inter.variable}>
             <body className="antialiased">
                 <BookingProvider>
-                    <Header />
-                    <main className="min-h-screen pt-20">
-                        {children}
-                    </main>
-                    <Footer />
+                    {children}
                 </BookingProvider>
             </body>
         </html>
     );
 }
+

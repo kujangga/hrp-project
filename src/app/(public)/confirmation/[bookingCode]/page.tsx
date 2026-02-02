@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle, Copy, ArrowRight, Calendar, MapPin, Mail, Phone, User, Download } from "lucide-react";
+import { CheckCircle, Copy, ArrowRight, Calendar, MapPin, Mail, Phone, User, Package } from "lucide-react";
 import { formatPrice, formatDate } from "@/lib/utils";
 import { CartItem } from "@/contexts/BookingContext";
 
@@ -197,14 +197,14 @@ export default function ConfirmationPage() {
 
                 {/* Actions */}
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                    <Link href="/" className="btn-primary flex items-center gap-2">
+                    <Link href={`/track/${bookingCode}`} className="btn-primary flex items-center gap-2">
+                        <Package className="w-4 h-4" />
+                        Track Your Booking
+                    </Link>
+                    <Link href="/" className="btn-secondary flex items-center gap-2">
                         Return to Home
                         <ArrowRight className="w-4 h-4" />
                     </Link>
-                    <button className="btn-secondary flex items-center gap-2">
-                        <Download className="w-4 h-4" />
-                        Download Receipt
-                    </button>
                 </div>
             </div>
         </div>
