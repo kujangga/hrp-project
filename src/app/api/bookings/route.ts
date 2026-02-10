@@ -7,6 +7,7 @@ export async function POST(request: Request) {
 
         const {
             bookingCode,
+            vendorId,
             customerName,
             customerEmail,
             customerPhone,
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
         const booking = await prisma.booking.create({
             data: {
                 bookingCode,
+                vendorId: vendorId || null,
                 customerName,
                 customerEmail,
                 customerPhone,

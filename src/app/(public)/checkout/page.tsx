@@ -6,12 +6,17 @@ import Image from "next/image";
 import Link from "next/link";
 import { useBooking } from "@/contexts/BookingContext";
 import { formatPrice, formatPriceShort, generateBookingCode } from "@/lib/utils";
-import { ShoppingBag, ShoppingCart, User, Mail, Phone, Calendar, MapPin, FileText, CreditCard, Loader2, ArrowLeft } from "lucide-react";
+import { ShoppingBag, ShoppingCart, User, Calendar, CreditCard, Loader2, ArrowLeft, Building2 } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 export default function CheckoutPage() {
     const router = useRouter();
     const { cart, getCartTotal, clearCart } = useBooking();
+    const { data: session } = useSession();
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const user = session?.user as { name?: string; email?: string; role?: string; vendorId?: string | null } | undefined;
+
     const [formData, setFormData] = useState({
         customerName: "",
         customerEmail: "",
@@ -22,6 +27,30 @@ export default function CheckoutPage() {
         specialRequests: "",
         paymentMethod: "bank_transfer",
     });
+
+    // Auto-fill vendor info from session
+    useEffect(() => {
+        if (user) {
+            // Fetch vendor details for phone
+            fetch("/api/vendor/profile")
+                .then(res => res.ok ? res.json() : null)
+                .then(vendor => {
+                    setFormData(prev => ({
+                        ...prev,
+                        customerName: vendor?.companyName || user.name || "",
+                        customerEmail: user.email || "",
+                        customerPhone: vendor?.phone || "",
+                    }));
+                })
+                .catch(() => {
+                    setFormData(prev => ({
+                        ...prev,
+                        customerName: user.name || "",
+                        customerEmail: user.email || "",
+                    }));
+                });
+        }
+    }, [user]);
 
     const total = getCartTotal();
     const tax = total * 0.11;
@@ -37,12 +66,11 @@ export default function CheckoutPage() {
         setIsSubmitting(true);
 
         try {
-            // Generate booking code
             const bookingCode = generateBookingCode();
 
-            // Prepare booking data
             const bookingData = {
                 bookingCode,
+                vendorId: user?.vendorId || null,
                 customerName: formData.customerName,
                 customerEmail: formData.customerEmail,
                 customerPhone: formData.customerPhone,
@@ -56,7 +84,6 @@ export default function CheckoutPage() {
                 total: grandTotal,
             };
 
-            // Save to database via API
             const response = await fetch('/api/bookings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -67,7 +94,6 @@ export default function CheckoutPage() {
                 throw new Error('Failed to create booking');
             }
 
-            // Store booking data in localStorage for confirmation page
             const localBookingData = {
                 bookingCode,
                 ...formData,
@@ -79,10 +105,7 @@ export default function CheckoutPage() {
             };
             localStorage.setItem("hrp-last-booking", JSON.stringify(localBookingData));
 
-            // Clear cart
             clearCart();
-
-            // Redirect to confirmation
             router.push(`/confirmation/${bookingCode}`);
         } catch (error) {
             console.error('Error creating booking:', error);
@@ -90,6 +113,7 @@ export default function CheckoutPage() {
             setIsSubmitting(false);
         }
     };
+
 
     // Show empty cart message instead of redirecting during render
     if (cart.length === 0) {
@@ -123,24 +147,32 @@ export default function CheckoutPage() {
                     <div className="lg:col-span-2 space-y-8">
                         {/* Customer Information */}
                         <div className="glass-card p-6">
-                            <div className="flex items-center gap-3 mb-6">
+                            <div className="flex items-center gap-3 mb-4">
                                 <div className="w-10 h-10 rounded-xl bg-primary-500/20 flex items-center justify-center">
                                     <User className="w-5 h-5 text-primary-400" />
                                 </div>
-                                <h2 className="text-lg font-semibold">Customer Information</h2>
+                                <h2 className="text-lg font-semibold">Vendor Information</h2>
                             </div>
+
+                            {user && (
+                                <div className="mb-4 px-4 py-3 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center gap-3">
+                                    <Building2 className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                                    <p className="text-purple-300 text-sm">Data diisi otomatis dari akun vendor Anda</p>
+                                </div>
+                            )}
 
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm text-white/60 mb-2">Full Name *</label>
+                                    <label className="block text-sm text-white/60 mb-2">Company / Name *</label>
                                     <input
                                         type="text"
                                         name="customerName"
                                         value={formData.customerName}
                                         onChange={handleInputChange}
                                         required
+                                        readOnly={!!user}
                                         placeholder="Enter your full name"
-                                        className="input-field"
+                                        className={`input-field ${user ? "opacity-70 cursor-not-allowed" : ""}`}
                                     />
                                 </div>
                                 <div>
@@ -163,8 +195,9 @@ export default function CheckoutPage() {
                                         value={formData.customerEmail}
                                         onChange={handleInputChange}
                                         required
+                                        readOnly={!!user}
                                         placeholder="your@email.com"
-                                        className="input-field"
+                                        className={`input-field ${user ? "opacity-70 cursor-not-allowed" : ""}`}
                                     />
                                 </div>
                             </div>

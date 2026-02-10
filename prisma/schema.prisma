@@ -32,19 +32,44 @@ model Location {
 }
 
 // ============================================
-// USER MODEL (Admin & Photographer roles only)
+// USER MODEL (Admin, Photographer, Vendor)
 // ============================================
 model User {
   id            String   @id @default(cuid())
   email         String   @unique
   password      String
   name          String
-  role          String   @default("PHOTOGRAPHER") // ADMIN, PHOTOGRAPHER
+  role          String   @default("VENDOR") // ADMIN, PHOTOGRAPHER, VENDOR
   
   photographer  Photographer?
+  vendor        Vendor?
   
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+// ============================================
+// VENDOR MODEL
+// ============================================
+model Vendor {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  companyName     String
+  contactPerson   String
+  phone           String
+  address         String?
+  city            String?
+  businessType    String?  // wedding_organizer, production_house, agency, corporate, freelance
+  npwp            String?  // Tax ID
+  
+  status          String   @default("ACTIVE") // ACTIVE, SUSPENDED
+  
+  bookings        Booking[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 // ============================================
@@ -192,7 +217,11 @@ model Booking {
   id              String   @id @default(cuid())
   bookingCode     String   @unique
   
-  // Customer info (guest checkout)
+  // Vendor relation (nullable for backward compat with old guest bookings)
+  vendorId        String?
+  vendor          Vendor?  @relation(fields: [vendorId], references: [id])
+  
+  // Customer info (auto-filled from Vendor, kept for display & backward compat)
   customerName    String
   customerEmail   String
   customerPhone   String
