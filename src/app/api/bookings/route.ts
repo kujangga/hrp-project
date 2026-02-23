@@ -32,11 +32,22 @@ export async function POST(request: Request) {
             }
         }
 
+        // Validate vendorId — it may be stale from a previous session/seed
+        let validVendorId = null;
+        if (vendorId) {
+            const vendor = await prisma.vendor.findUnique({
+                where: { id: vendorId }
+            });
+            if (vendor) {
+                validVendorId = vendor.id;
+            }
+        }
+
         // Create booking with items
         const booking = await prisma.booking.create({
             data: {
                 bookingCode,
-                vendorId: vendorId || null,
+                vendorId: validVendorId,
                 customerName,
                 customerEmail,
                 customerPhone,
@@ -50,7 +61,7 @@ export async function POST(request: Request) {
                 status: 'PENDING',
                 paymentStatus: 'UNPAID',
                 items: {
-                    create: items.map((item: {
+                    create: await Promise.all(items.map(async (item: {
                         id: string;
                         type: string;
                         name: string;
@@ -81,19 +92,23 @@ export async function POST(request: Request) {
                             durationType: item.priceUnit || 'day',
                         };
 
-                        // Set the appropriate relation based on item type
-                        if (item.type === 'photographer') {
-                            itemData.photographerId = item.id;
-                        } else if (item.type === 'videographer') {
-                            itemData.videographerId = item.id;
-                        } else if (item.type === 'equipment') {
-                            itemData.equipmentId = item.id;
-                        } else if (item.type === 'transport') {
-                            itemData.transportId = item.id;
+                        // Validate and set the appropriate relation based on item type
+                        if (item.type === 'photographer' && item.id) {
+                            const exists = await prisma.photographer.findUnique({ where: { id: item.id } });
+                            if (exists) itemData.photographerId = item.id;
+                        } else if (item.type === 'videographer' && item.id) {
+                            const exists = await prisma.videographer.findUnique({ where: { id: item.id } });
+                            if (exists) itemData.videographerId = item.id;
+                        } else if (item.type === 'equipment' && item.id) {
+                            const exists = await prisma.equipment.findUnique({ where: { id: item.id } });
+                            if (exists) itemData.equipmentId = item.id;
+                        } else if (item.type === 'transport' && item.id) {
+                            const exists = await prisma.transport.findUnique({ where: { id: item.id } });
+                            if (exists) itemData.transportId = item.id;
                         }
 
                         return itemData;
-                    })
+                    }))
                 }
             },
             include: {

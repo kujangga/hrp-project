@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -10,6 +11,7 @@ async function main() {
     await prisma.bookingItem.deleteMany()
     await prisma.booking.deleteMany()
     await prisma.availability.deleteMany()
+    await prisma.vendor.deleteMany()
     await prisma.photographer.deleteMany()
     await prisma.videographer.deleteMany()
     await prisma.equipment.deleteMany()
@@ -245,16 +247,52 @@ async function main() {
     }
 
     // ==========================================
-    // Create Admin User
+    // Create Test Users (All Roles)
     // ==========================================
-    console.log('👤 Creating admin user...')
+    console.log('👤 Creating test users...')
 
+    // Hash password dynamically to ensure compatibility with current bcryptjs version
+    const hashedPassword = await bcrypt.hash("password123", 10)
+
+    // Admin account
     await prisma.user.create({
         data: {
             email: 'admin@hrp.com',
-            password: 'admin123', // In production, this should be hashed
+            password: hashedPassword,
             name: 'HRP Admin',
             role: 'ADMIN'
+        }
+    })
+
+    // Talent account (linked to first photographer)
+    const andiPhotographer = await prisma.photographer.findFirst({ where: { name: 'Andi Rahman' } })
+    await prisma.user.create({
+        data: {
+            email: 'talent@hrp.com',
+            password: hashedPassword,
+            name: 'Andi Rahman',
+            role: 'TALENT',
+            ...(andiPhotographer ? { photographer: { connect: { id: andiPhotographer.id } } } : {})
+        }
+    })
+
+    // Vendor account
+    const vendorUser = await prisma.user.create({
+        data: {
+            email: 'vendor@hrp.com',
+            password: hashedPassword,
+            name: 'Demo Vendor',
+            role: 'VENDOR',
+        }
+    })
+    await prisma.vendor.create({
+        data: {
+            userId: vendorUser.id,
+            companyName: 'PT Demo Vendor',
+            contactPerson: 'Demo User',
+            phone: '081234567890',
+            businessType: 'wedding_organizer',
+            city: 'Jakarta',
         }
     })
 

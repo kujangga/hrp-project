@@ -39,7 +39,7 @@ model User {
   email         String   @unique
   password      String
   name          String
-  role          String   @default("VENDOR") // ADMIN, PHOTOGRAPHER, VENDOR
+  role          String   @default("VENDOR") // ADMIN, TALENT, VENDOR
   
   photographer  Photographer?
   vendor        Vendor?

@@ -15,12 +15,12 @@ export default auth((req) => {
         }
     }
 
-    // Photographer/Resource dashboard: require PHOTOGRAPHER role
+    // Talent dashboard: require TALENT role
     if (pathname.startsWith("/dashboard")) {
         if (!user) {
             return NextResponse.redirect(new URL("/login?callbackUrl=" + encodeURIComponent(pathname), req.url));
         }
-        if (user.role !== "PHOTOGRAPHER") {
+        if (user.role !== "TALENT") {
             return NextResponse.redirect(new URL("/unauthorized", req.url));
         }
     }

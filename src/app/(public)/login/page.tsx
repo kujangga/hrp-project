@@ -42,7 +42,7 @@ export default function LoginPage() {
 
             if (role === "ADMIN") {
                 router.push("/admin");
-            } else if (role === "PHOTOGRAPHER") {
+            } else if (role === "TALENT") {
                 router.push("/dashboard");
             } else if (role === "VENDOR") {
                 router.push(callbackUrl === "/" ? "/vendor" : callbackUrl);

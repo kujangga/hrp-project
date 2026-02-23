@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     User,
     Camera,
@@ -14,34 +14,78 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
+interface PhotographerProfile {
+    id: string;
+    name: string;
+    bio: string | null;
+    phone: string | null;
+    instagram: string | null;
+    profileImage: string | null;
+    grade: string;
+    hourlyRate: number;
+    dailyRate: number;
+    status: string;
+    location: { id: string; name: string } | null;
+}
+
 export default function ProfilePage() {
+    const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [saveMessage, setSaveMessage] = useState('');
+    const [profile, setProfile] = useState<PhotographerProfile | null>(null);
     const [formData, setFormData] = useState({
-        name: 'John Photography',
-        bio: 'Professional wedding and portrait photographer with 5+ years of experience. Specializing in candid moments and natural lighting.',
-        phone: '+62 812 3456 7890',
-        instagram: '@johnphotography',
-        profileImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
+        name: '',
+        bio: '',
+        phone: '',
+        instagram: '',
+        profileImage: '',
     });
 
-    // Read-only fields set by admin
-    const adminFields = {
-        grade: 'A',
-        hourlyRate: 750000,
-        dailyRate: 5000000,
-        location: 'Jakarta',
-        status: 'PUBLISHED'
-    };
+    useEffect(() => {
+        fetch('/api/talent/profile')
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+                if (data) {
+                    setProfile(data);
+                    setFormData({
+                        name: data.name || '',
+                        bio: data.bio || '',
+                        phone: data.phone || '',
+                        instagram: data.instagram || '',
+                        profileImage: data.profileImage || '',
+                    });
+                }
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    }, []);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+        setSaveMessage('');
     };
 
     const handleSave = async () => {
         setIsSaving(true);
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        setSaveMessage('');
+        try {
+            const res = await fetch('/api/talent/profile', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData),
+            });
+            if (res.ok) {
+                const updated = await res.json();
+                setProfile(prev => prev ? { ...prev, ...updated } : prev);
+                setSaveMessage('Profile saved successfully!');
+                setTimeout(() => setSaveMessage(''), 3000);
+            } else {
+                setSaveMessage('Failed to save. Please try again.');
+            }
+        } catch {
+            setSaveMessage('Failed to save. Please try again.');
+        }
         setIsSaving(false);
     };
 
@@ -53,6 +97,22 @@ export default function ProfilePage() {
         'E': 'bg-gradient-to-r from-gray-500 to-gray-600 text-white',
     };
 
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Loader2 className="w-8 h-8 text-pink-400 animate-spin" />
+            </div>
+        );
+    }
+
+    if (!profile) {
+        return (
+            <div className="flex items-center justify-center h-64 text-gray-400">
+                <p>Failed to load profile. Please try again.</p>
+            </div>
+        );
+    }
+
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             {/* Page Header */}
@@ -62,7 +122,7 @@ export default function ProfilePage() {
                     <p className="text-gray-400 mt-1">Manage your public profile information</p>
                 </div>
                 <Link
-                    href={`/photographers/${formData.name.toLowerCase().replace(' ', '-')}`}
+                    href={`/photographers/${profile.id}`}
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
                 >
                     <Eye size={18} />
@@ -87,8 +147,8 @@ export default function ProfilePage() {
                                 </div>
                             )}
                         </div>
-                        <span className={`absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full text-xs font-bold ${gradeColors[adminFields.grade]}`}>
-                            {adminFields.grade}
+                        <span className={`absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full text-xs font-bold ${gradeColors[profile.grade]}`}>
+                            {profile.grade}
                         </span>
                     </div>
                     <div className="text-center sm:text-left">
@@ -96,19 +156,19 @@ export default function ProfilePage() {
                         <div className="flex flex-wrap justify-center sm:justify-start gap-3 mt-2 text-sm text-gray-400">
                             <span className="flex items-center gap-1">
                                 <MapPin size={14} />
-                                {adminFields.location}
+                                {profile.location?.name || 'No location set'}
                             </span>
                             <span className="flex items-center gap-1">
                                 <DollarSign size={14} />
-                                Rp {adminFields.dailyRate.toLocaleString('id-ID')}/day
+                                Rp {profile.dailyRate.toLocaleString('id-ID')}/day
                             </span>
                         </div>
                         <div className="mt-2">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${adminFields.status === 'PUBLISHED'
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${profile.status === 'PUBLISHED'
                                     ? 'bg-emerald-500/20 text-emerald-400'
                                     : 'bg-amber-500/20 text-amber-400'
                                 }`}>
-                                {adminFields.status}
+                                {profile.status}
                             </span>
                         </div>
                     </div>
@@ -200,27 +260,27 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
                     <div className="rounded-xl bg-white/5 p-4">
                         <p className="text-gray-500 text-xs mb-1">Grade</p>
-                        <span className={`px-3 py-1 rounded-full text-sm font-bold ${gradeColors[adminFields.grade]}`}>
-                            Grade {adminFields.grade}
+                        <span className={`px-3 py-1 rounded-full text-sm font-bold ${gradeColors[profile.grade]}`}>
+                            Grade {profile.grade}
                         </span>
                     </div>
                     <div className="rounded-xl bg-white/5 p-4">
                         <p className="text-gray-500 text-xs mb-1">Location</p>
-                        <p className="text-white font-medium">{adminFields.location}</p>
+                        <p className="text-white font-medium">{profile.location?.name || '—'}</p>
                     </div>
                     <div className="rounded-xl bg-white/5 p-4">
                         <p className="text-gray-500 text-xs mb-1">Hourly Rate</p>
-                        <p className="text-white font-medium">Rp {adminFields.hourlyRate.toLocaleString('id-ID')}</p>
+                        <p className="text-white font-medium">Rp {profile.hourlyRate.toLocaleString('id-ID')}</p>
                     </div>
                     <div className="rounded-xl bg-white/5 p-4">
                         <p className="text-gray-500 text-xs mb-1">Daily Rate</p>
-                        <p className="text-white font-medium">Rp {adminFields.dailyRate.toLocaleString('id-ID')}</p>
+                        <p className="text-white font-medium">Rp {profile.dailyRate.toLocaleString('id-ID')}</p>
                     </div>
                 </div>
             </div>
 
             {/* Save Button */}
-            <div className="flex justify-end">
+            <div className="flex items-center gap-4">
                 <button
                     onClick={handleSave}
                     disabled={isSaving}
@@ -238,6 +298,11 @@ export default function ProfilePage() {
                         </>
                     )}
                 </button>
+                {saveMessage && (
+                    <span className={`text-sm ${saveMessage.includes('success') ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {saveMessage}
+                    </span>
+                )}
             </div>
         </div>
     );

@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import {
     Camera,
     Calendar,
@@ -5,26 +8,55 @@ import {
     TrendingUp,
     Clock,
     CheckCircle,
-    AlertCircle
+    AlertCircle,
+    Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 
+interface DashboardStats {
+    name: string;
+    grade: string;
+    profileImage: string | null;
+    portfolioItems: number;
+    totalBookings: number;
+    upcomingBookings: number;
+    nextBooking: {
+        date: string;
+        client: string;
+        location: string;
+        status: string;
+    } | null;
+}
+
 export default function PhotographerDashboard() {
-    // In real app, this data would come from the authenticated user's session
-    const mockData = {
-        name: 'John Photography',
-        grade: 'A',
-        totalBookings: 24,
-        upcomingBookings: 3,
-        portfolioItems: 5,
-        publishedItems: 4,
-        profileViews: 156,
-        nextBooking: {
-            date: '2026-02-01',
-            client: 'PT Media Kreatif',
-            location: 'Jakarta'
-        }
-    };
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetch('/api/talent/stats')
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+                if (data) setStats(data);
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Loader2 className="w-8 h-8 text-pink-400 animate-spin" />
+            </div>
+        );
+    }
+
+    if (!stats) {
+        return (
+            <div className="flex items-center justify-center h-64 text-gray-400">
+                <p>Failed to load dashboard data. Please try again.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8">
@@ -32,7 +64,7 @@ export default function PhotographerDashboard() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl lg:text-3xl font-bold text-white">
-                        Welcome back, <span className="text-pink-400">{mockData.name}</span>
+                        Welcome back, <span className="text-pink-400">{stats.name}</span>
                     </h1>
                     <p className="text-gray-400 mt-1">Here&apos;s what&apos;s happening with your profile</p>
                 </div>
@@ -54,14 +86,14 @@ export default function PhotographerDashboard() {
                             <Camera size={24} className="text-white" />
                         </div>
                         <div>
-                            <p className="text-3xl font-bold text-white">{mockData.portfolioItems}</p>
+                            <p className="text-3xl font-bold text-white">{stats.portfolioItems}</p>
                             <p className="text-gray-400 text-sm">Portfolio Items</p>
                         </div>
                     </div>
                     <div className="mt-4 flex items-center gap-2 text-sm">
-                        <span className="text-emerald-400">{mockData.publishedItems} published</span>
+                        <span className="text-emerald-400">{stats.portfolioItems} uploaded</span>
                         <span className="text-gray-600">•</span>
-                        <span className="text-amber-400">{mockData.portfolioItems - mockData.publishedItems} draft</span>
+                        <span className="text-amber-400">{5 - stats.portfolioItems} slots left</span>
                     </div>
                 </div>
 
@@ -71,7 +103,7 @@ export default function PhotographerDashboard() {
                             <Calendar size={24} className="text-white" />
                         </div>
                         <div>
-                            <p className="text-3xl font-bold text-white">{mockData.upcomingBookings}</p>
+                            <p className="text-3xl font-bold text-white">{stats.upcomingBookings}</p>
                             <p className="text-gray-400 text-sm">Upcoming Bookings</p>
                         </div>
                     </div>
@@ -88,13 +120,13 @@ export default function PhotographerDashboard() {
                             <Eye size={24} className="text-white" />
                         </div>
                         <div>
-                            <p className="text-3xl font-bold text-white">{mockData.profileViews}</p>
+                            <p className="text-3xl font-bold text-white">—</p>
                             <p className="text-gray-400 text-sm">Profile Views</p>
                         </div>
                     </div>
-                    <div className="mt-4 flex items-center gap-1 text-emerald-400 text-sm">
+                    <div className="mt-4 flex items-center gap-1 text-gray-500 text-sm">
                         <TrendingUp size={14} />
-                        <span>+12% this week</span>
+                        <span>Coming soon</span>
                     </div>
                 </div>
 
@@ -104,12 +136,12 @@ export default function PhotographerDashboard() {
                             <CheckCircle size={24} className="text-white" />
                         </div>
                         <div>
-                            <p className="text-3xl font-bold text-white">{mockData.totalBookings}</p>
+                            <p className="text-3xl font-bold text-white">{stats.totalBookings}</p>
                             <p className="text-gray-400 text-sm">Total Bookings</p>
                         </div>
                     </div>
                     <div className="mt-4 text-gray-500 text-sm">
-                        All time completed
+                        All time
                     </div>
                 </div>
             </div>
@@ -123,22 +155,22 @@ export default function PhotographerDashboard() {
                         Next Booking
                     </h2>
 
-                    {mockData.nextBooking ? (
+                    {stats.nextBooking ? (
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-white font-medium">{mockData.nextBooking.client}</p>
-                                    <p className="text-gray-400 text-sm">{mockData.nextBooking.location}</p>
+                                    <p className="text-white font-medium">{stats.nextBooking.client}</p>
+                                    <p className="text-gray-400 text-sm">{stats.nextBooking.location}</p>
                                 </div>
                                 <div className="text-right">
                                     <p className="text-purple-400 font-medium">
-                                        {new Date(mockData.nextBooking.date).toLocaleDateString('id-ID', {
+                                        {new Date(stats.nextBooking.date).toLocaleDateString('id-ID', {
                                             weekday: 'short',
                                             day: 'numeric',
                                             month: 'short'
                                         })}
                                     </p>
-                                    <p className="text-gray-500 text-sm">Confirmed</p>
+                                    <p className="text-gray-500 text-sm">{stats.nextBooking.status}</p>
                                 </div>
                             </div>
                             <Link
@@ -195,8 +227,8 @@ export default function PhotographerDashboard() {
                                 <Eye size={20} />
                             </div>
                             <div className="flex-1">
-                                <p className="text-white font-medium">View Public Profile</p>
-                                <p className="text-gray-500 text-sm">See how clients see you</p>
+                                <p className="text-white font-medium">Edit Profile</p>
+                                <p className="text-gray-500 text-sm">Update your public information</p>
                             </div>
                         </Link>
                     </div>
@@ -213,7 +245,7 @@ export default function PhotographerDashboard() {
                         <h3 className="text-white font-medium mb-1">Tip: Complete your portfolio</h3>
                         <p className="text-gray-400 text-sm">
                             Photographers with 5 portfolio items get 3x more bookings.
-                            You have {mockData.portfolioItems} items - {mockData.portfolioItems >= 5 ? "great job!" : `add ${5 - mockData.portfolioItems} more to maximize visibility!`}
+                            You have {stats.portfolioItems} items - {stats.portfolioItems >= 5 ? "great job!" : `add ${5 - stats.portfolioItems} more to maximize visibility!`}
                         </p>
                     </div>
                 </div>

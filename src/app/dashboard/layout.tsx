@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
 import {
     LayoutDashboard,
     Images,
@@ -13,7 +14,8 @@ import {
     LogOut,
     ChevronRight,
     Bell,
-    Camera
+    Camera,
+    Loader2
 } from 'lucide-react';
 
 const navigation = [
@@ -23,13 +25,64 @@ const navigation = [
     { name: 'Profile', href: '/dashboard/profile', icon: User },
 ];
 
+const gradeLabels: Record<string, string> = {
+    'A': 'Premium Tier',
+    'B': 'Professional Tier',
+    'C': 'Standard Tier',
+    'D': 'Growing Tier',
+    'E': 'Entry Tier',
+};
+
+const gradeColors: Record<string, string> = {
+    'A': 'bg-gradient-to-r from-amber-400 to-yellow-500 text-black',
+    'B': 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white',
+    'C': 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white',
+    'D': 'bg-gradient-to-r from-emerald-500 to-green-600 text-white',
+    'E': 'bg-gradient-to-r from-gray-500 to-gray-600 text-white',
+};
+
+interface TalentInfo {
+    name: string;
+    grade: string;
+    profileImage: string | null;
+}
+
 export default function DashboardLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
+    const { data: session } = useSession();
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [talentInfo, setTalentInfo] = useState<TalentInfo | null>(null);
+    const [loadingInfo, setLoadingInfo] = useState(true);
+
+    const user = session?.user as { name?: string; role?: string } | undefined;
+
+    useEffect(() => {
+        if (user?.role === 'TALENT') {
+            fetch('/api/talent/stats')
+                .then(res => res.ok ? res.json() : null)
+                .then(data => {
+                    if (data) {
+                        setTalentInfo({
+                            name: data.name,
+                            grade: data.grade,
+                            profileImage: data.profileImage,
+                        });
+                    }
+                    setLoadingInfo(false);
+                })
+                .catch(() => setLoadingInfo(false));
+        } else {
+            setLoadingInfo(false);
+        }
+    }, [user?.role]);
+
+    const displayName = talentInfo?.name || user?.name || 'Photographer';
+    const grade = talentInfo?.grade || '—';
+    const initial = displayName.charAt(0).toUpperCase();
 
     return (
         <div className="min-h-screen bg-[#0a0a12]">
@@ -105,26 +158,38 @@ export default function DashboardLayout({
                 <div className="absolute bottom-20 left-0 right-0 px-4">
                     <div className="rounded-xl bg-gradient-to-br from-pink-500/10 to-rose-500/5 border border-pink-500/20 p-4">
                         <p className="text-gray-400 text-sm mb-2">Your Grade</p>
-                        <div className="flex items-center gap-2">
-                            <span className="px-3 py-1 rounded-full text-sm font-bold bg-gradient-to-r from-amber-400 to-yellow-500 text-black">
-                                Grade A
-                            </span>
-                            <span className="text-gray-500 text-sm">Premium Tier</span>
-                        </div>
+                        {loadingInfo ? (
+                            <Loader2 size={16} className="text-pink-400 animate-spin" />
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <span className={`px-3 py-1 rounded-full text-sm font-bold ${gradeColors[grade] || 'bg-gray-600 text-white'}`}>
+                                    Grade {grade}
+                                </span>
+                                <span className="text-gray-500 text-sm">{gradeLabels[grade] || ''}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
                 {/* Bottom Section */}
                 <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/5">
                     <div className="flex items-center gap-3 px-3 py-2">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center text-white font-medium">
-                            P
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center text-white font-medium overflow-hidden">
+                            {talentInfo?.profileImage ? (
+                                <img src={talentInfo.profileImage} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                                initial
+                            )}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-white text-sm font-medium truncate">Photographer</p>
-                            <p className="text-gray-500 text-xs truncate">View public profile</p>
+                            <p className="text-white text-sm font-medium truncate">{displayName}</p>
+                            <p className="text-gray-500 text-xs truncate">Photographer</p>
                         </div>
-                        <button className="text-gray-400 hover:text-red-400 transition-colors p-2">
+                        <button
+                            onClick={() => signOut({ callbackUrl: '/login' })}
+                            className="text-gray-400 hover:text-red-400 transition-colors p-2"
+                            title="Logout"
+                        >
                             <LogOut size={18} />
                         </button>
                     </div>

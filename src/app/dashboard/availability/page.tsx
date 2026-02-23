@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     ChevronLeft,
     ChevronRight,
     Check,
     X,
     Calendar as CalendarIcon,
-    Info
+    Info,
+    Loader2
 } from 'lucide-react';
 
 interface DayStatus {
@@ -17,16 +18,47 @@ interface DayStatus {
     isPast: boolean;
 }
 
+interface AvailabilityRecord {
+    id: string;
+    date: string;
+    isAvailable: boolean;
+    isBooked: boolean;
+}
+
 export default function AvailabilityPage() {
     const [currentMonth, setCurrentMonth] = useState(new Date());
-    const [availability, setAvailability] = useState<Record<string, { available: boolean; booked: boolean }>>({
-        // Mock data - some dates marked as unavailable or booked
-        '2026-02-05': { available: false, booked: false },
-        '2026-02-06': { available: false, booked: false },
-        '2026-02-10': { available: true, booked: true },
-        '2026-02-15': { available: true, booked: true },
-        '2026-02-20': { available: false, booked: false },
-    });
+    const [availability, setAvailability] = useState<Record<string, { available: boolean; booked: boolean }>>({});
+    const [loading, setLoading] = useState(true);
+    const [togglingDate, setTogglingDate] = useState<string | null>(null);
+
+    useEffect(() => {
+        fetchAvailability();
+    }, [currentMonth]);
+
+    const fetchAvailability = async () => {
+        setLoading(true);
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth() + 1;
+
+        try {
+            const res = await fetch(`/api/talent/availability?year=${year}&month=${month}`);
+            if (res.ok) {
+                const data: AvailabilityRecord[] = await res.json();
+                const map: Record<string, { available: boolean; booked: boolean }> = {};
+                data.forEach(record => {
+                    const dateKey = new Date(record.date).toISOString().split('T')[0];
+                    map[dateKey] = {
+                        available: record.isAvailable,
+                        booked: record.isBooked,
+                    };
+                });
+                setAvailability(map);
+            }
+        } catch {
+            // ignore
+        }
+        setLoading(false);
+    };
 
     const getDaysInMonth = (date: Date) => {
         const year = date.getFullYear();
@@ -62,17 +94,48 @@ export default function AvailabilityPage() {
         return days;
     };
 
-    const toggleAvailability = (date: Date) => {
+    const toggleAvailability = async (date: Date) => {
         const dateKey = date.toISOString().split('T')[0];
         const currentStatus = availability[dateKey] || { available: true, booked: false };
 
         // Can't change booked dates
         if (currentStatus.booked) return;
 
-        setAvailability({
-            ...availability,
-            [dateKey]: { ...currentStatus, available: !currentStatus.available }
-        });
+        const newAvailable = !currentStatus.available;
+
+        // Optimistic update
+        setAvailability(prev => ({
+            ...prev,
+            [dateKey]: { ...currentStatus, available: newAvailable }
+        }));
+
+        setTogglingDate(dateKey);
+
+        try {
+            const res = await fetch('/api/talent/availability', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date: dateKey,
+                    isAvailable: newAvailable,
+                }),
+            });
+
+            if (!res.ok) {
+                // Revert on failure
+                setAvailability(prev => ({
+                    ...prev,
+                    [dateKey]: { ...currentStatus, available: !newAvailable }
+                }));
+            }
+        } catch {
+            // Revert on failure
+            setAvailability(prev => ({
+                ...prev,
+                [dateKey]: { ...currentStatus, available: !newAvailable }
+            }));
+        }
+        setTogglingDate(null);
     };
 
     const goToPreviousMonth = () => {
@@ -155,57 +218,69 @@ export default function AvailabilityPage() {
                     </button>
                 </div>
 
-                {/* Week Days Header */}
-                <div className="grid grid-cols-7 gap-2 mb-2">
-                    {weekDays.map(day => (
-                        <div key={day} className="text-center text-gray-500 text-sm font-medium py-2">
-                            {day}
+                {loading ? (
+                    <div className="flex items-center justify-center h-48">
+                        <Loader2 className="w-8 h-8 text-pink-400 animate-spin" />
+                    </div>
+                ) : (
+                    <>
+                        {/* Week Days Header */}
+                        <div className="grid grid-cols-7 gap-2 mb-2">
+                            {weekDays.map(day => (
+                                <div key={day} className="text-center text-gray-500 text-sm font-medium py-2">
+                                    {day}
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                </div>
 
-                {/* Calendar Grid */}
-                <div className="grid grid-cols-7 gap-2">
-                    {days.map((day, index) => {
-                        if (day.date.getTime() === 0) {
-                            // Empty padding cell
-                            return <div key={`empty-${index}`} className="aspect-square" />;
-                        }
+                        {/* Calendar Grid */}
+                        <div className="grid grid-cols-7 gap-2">
+                            {days.map((day, index) => {
+                                if (day.date.getTime() === 0) {
+                                    return <div key={`empty-${index}`} className="aspect-square" />;
+                                }
 
-                        const isToday = day.date.toDateString() === new Date().toDateString();
+                                const isToday = day.date.toDateString() === new Date().toDateString();
+                                const dateKey = day.date.toISOString().split('T')[0];
+                                const isToggling = togglingDate === dateKey;
 
-                        return (
-                            <button
-                                key={day.date.toISOString()}
-                                onClick={() => !day.isPast && !day.isBooked && toggleAvailability(day.date)}
-                                disabled={day.isPast || day.isBooked}
-                                className={`
-                                    aspect-square rounded-xl flex flex-col items-center justify-center
-                                    transition-all relative group
-                                    ${day.isPast
-                                        ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed'
-                                        : day.isBooked
-                                            ? 'bg-purple-500/20 border border-purple-500/50 text-purple-400 cursor-not-allowed'
-                                            : day.isAvailable
-                                                ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/30'
-                                                : 'bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30'
-                                    }
-                                    ${isToday ? 'ring-2 ring-pink-500 ring-offset-2 ring-offset-[#0a0a12]' : ''}
-                                `}
-                            >
-                                <span className="text-sm font-medium">{day.date.getDate()}</span>
-                                {day.isBooked && (
-                                    <CalendarIcon size={12} className="absolute bottom-1" />
-                                )}
-                                {!day.isPast && !day.isBooked && (
-                                    <span className="absolute bottom-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        {day.isAvailable ? <X size={12} /> : <Check size={12} />}
-                                    </span>
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
+                                return (
+                                    <button
+                                        key={day.date.toISOString()}
+                                        onClick={() => !day.isPast && !day.isBooked && toggleAvailability(day.date)}
+                                        disabled={day.isPast || day.isBooked || isToggling}
+                                        className={`
+                                            aspect-square rounded-xl flex flex-col items-center justify-center
+                                            transition-all relative group
+                                            ${day.isPast
+                                                ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed'
+                                                : day.isBooked
+                                                    ? 'bg-purple-500/20 border border-purple-500/50 text-purple-400 cursor-not-allowed'
+                                                    : day.isAvailable
+                                                        ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/30'
+                                                        : 'bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30'
+                                            }
+                                            ${isToday ? 'ring-2 ring-pink-500 ring-offset-2 ring-offset-[#0a0a12]' : ''}
+                                        `}
+                                    >
+                                        <span className="text-sm font-medium">{day.date.getDate()}</span>
+                                        {day.isBooked && (
+                                            <CalendarIcon size={12} className="absolute bottom-1" />
+                                        )}
+                                        {!day.isPast && !day.isBooked && !isToggling && (
+                                            <span className="absolute bottom-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                {day.isAvailable ? <X size={12} /> : <Check size={12} />}
+                                            </span>
+                                        )}
+                                        {isToggling && (
+                                            <Loader2 size={12} className="absolute bottom-1 animate-spin" />
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Instructions */}
@@ -219,19 +294,10 @@ export default function AvailabilityPage() {
                             <li>• Booked dates cannot be changed (shown in purple)</li>
                             <li>• Past dates are automatically blocked</li>
                             <li>• Clients can only book on dates marked as Available</li>
+                            <li>• Changes are saved automatically</li>
                         </ul>
                     </div>
                 </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="flex flex-wrap gap-3">
-                <button className="px-5 py-3 rounded-xl bg-emerald-500/20 text-emerald-400 font-medium hover:bg-emerald-500/30 transition-colors">
-                    Mark All Available
-                </button>
-                <button className="px-5 py-3 rounded-xl bg-red-500/20 text-red-400 font-medium hover:bg-red-500/30 transition-colors">
-                    Block Entire Month
-                </button>
             </div>
         </div>
     );

@@ -1,49 +1,62 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import {
     Plus,
     Upload,
-    Eye,
-    EyeOff,
     Trash2,
     GripVertical,
     Camera,
     X,
     Loader2,
-    Check
 } from 'lucide-react';
 
 interface PortfolioItem {
     id: string;
     imageUrl: string;
-    caption: string;
-    isPublished: boolean;
+    caption: string | null;
     order: number;
 }
 
 export default function PortfolioPage() {
-    const [items, setItems] = useState<PortfolioItem[]>([
-        { id: '1', imageUrl: 'https://images.unsplash.com/photo-1519741497674-611481863552?w=800', caption: 'Wedding Photography', isPublished: true, order: 1 },
-        { id: '2', imageUrl: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=800', caption: 'Couple Portrait', isPublished: true, order: 2 },
-        { id: '3', imageUrl: 'https://images.unsplash.com/photo-1529634806980-85c3dd6d34ac?w=800', caption: 'Pre-Wedding Session', isPublished: false, order: 3 },
-    ]);
-
+    const [items, setItems] = useState<PortfolioItem[]>([]);
+    const [loading, setLoading] = useState(true);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [newItem, setNewItem] = useState({ imageUrl: '', caption: '' });
     const [isUploading, setIsUploading] = useState(false);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
-    const togglePublish = (id: string) => {
-        setItems(items.map(item =>
-            item.id === id ? { ...item, isPublished: !item.isPublished } : item
-        ));
+    useEffect(() => {
+        fetchPortfolio();
+    }, []);
+
+    const fetchPortfolio = async () => {
+        try {
+            const res = await fetch('/api/talent/portfolio');
+            if (res.ok) {
+                const data = await res.json();
+                setItems(data);
+            }
+        } catch {
+            // ignore
+        }
+        setLoading(false);
     };
 
-    const deleteItem = (id: string) => {
-        if (confirm('Are you sure you want to delete this portfolio item?')) {
-            setItems(items.filter(item => item.id !== id));
+    const deleteItem = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this portfolio item?')) return;
+
+        setDeletingId(id);
+        try {
+            const res = await fetch(`/api/talent/portfolio/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                setItems(items.filter(item => item.id !== id));
+            }
+        } catch {
+            // ignore
         }
+        setDeletingId(null);
     };
 
     const handleUpload = async () => {
@@ -51,25 +64,37 @@ export default function PortfolioPage() {
 
         setIsUploading(true);
 
-        // Simulate upload delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+            const res = await fetch('/api/talent/portfolio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    imageUrl: newItem.imageUrl,
+                    caption: newItem.caption || 'New Photo',
+                }),
+            });
 
-        const newPortfolioItem: PortfolioItem = {
-            id: Date.now().toString(),
-            imageUrl: newItem.imageUrl,
-            caption: newItem.caption || 'New Photo',
-            isPublished: false,
-            order: items.length + 1
-        };
-
-        setItems([...items, newPortfolioItem]);
-        setNewItem({ imageUrl: '', caption: '' });
-        setShowUploadModal(false);
+            if (res.ok) {
+                const created = await res.json();
+                setItems([...items, created]);
+                setNewItem({ imageUrl: '', caption: '' });
+                setShowUploadModal(false);
+            }
+        } catch {
+            // ignore
+        }
         setIsUploading(false);
     };
 
-    const publishedCount = items.filter(i => i.isPublished).length;
     const maxItems = 5;
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Loader2 className="w-8 h-8 text-pink-400 animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -145,7 +170,7 @@ export default function PortfolioPage() {
                                     {isUploading ? (
                                         <>
                                             <Loader2 size={18} className="animate-spin" />
-                                            Uploading...
+                                            Adding...
                                         </>
                                     ) : (
                                         <>
@@ -177,18 +202,14 @@ export default function PortfolioPage() {
             </div>
 
             {/* Stats Bar */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-xl bg-white/5 border border-white/10 p-4 text-center">
                     <p className="text-2xl font-bold text-white">{items.length}/{maxItems}</p>
                     <p className="text-gray-500 text-sm">Total Items</p>
                 </div>
-                <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4 text-center">
-                    <p className="text-2xl font-bold text-emerald-400">{publishedCount}</p>
-                    <p className="text-emerald-400/60 text-sm">Published</p>
-                </div>
                 <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 text-center">
-                    <p className="text-2xl font-bold text-amber-400">{items.length - publishedCount}</p>
-                    <p className="text-amber-400/60 text-sm">Draft</p>
+                    <p className="text-2xl font-bold text-amber-400">{maxItems - items.length}</p>
+                    <p className="text-amber-400/60 text-sm">Slots Available</p>
                 </div>
             </div>
 
@@ -226,20 +247,10 @@ export default function PortfolioPage() {
                             <div className="relative aspect-[4/3]">
                                 <Image
                                     src={item.imageUrl}
-                                    alt={item.caption}
+                                    alt={item.caption || 'Portfolio'}
                                     fill
                                     className="object-cover"
                                 />
-
-                                {/* Status Badge */}
-                                <div className="absolute top-3 left-3">
-                                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${item.isPublished
-                                            ? 'bg-emerald-500/90 text-white'
-                                            : 'bg-amber-500/90 text-black'
-                                        }`}>
-                                        {item.isPublished ? 'Published' : 'Draft'}
-                                    </span>
-                                </div>
 
                                 {/* Drag Handle */}
                                 <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -251,29 +262,24 @@ export default function PortfolioPage() {
                                 {/* Overlay on Hover */}
                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                                     <button
-                                        onClick={() => togglePublish(item.id)}
-                                        className={`p-3 rounded-xl transition-colors ${item.isPublished
-                                                ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
-                                                : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                                            }`}
-                                        title={item.isPublished ? 'Unpublish' : 'Publish'}
-                                    >
-                                        {item.isPublished ? <EyeOff size={20} /> : <Eye size={20} />}
-                                    </button>
-                                    <button
                                         onClick={() => deleteItem(item.id)}
-                                        className="p-3 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+                                        disabled={deletingId === item.id}
+                                        className="p-3 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50"
                                         title="Delete"
                                     >
-                                        <Trash2 size={20} />
+                                        {deletingId === item.id ? (
+                                            <Loader2 size={20} className="animate-spin" />
+                                        ) : (
+                                            <Trash2 size={20} />
+                                        )}
                                     </button>
                                 </div>
                             </div>
 
                             {/* Caption */}
                             <div className="p-4">
-                                <p className="text-white font-medium truncate">{item.caption}</p>
-                                <p className="text-gray-500 text-sm">Order: {item.order}</p>
+                                <p className="text-white font-medium truncate">{item.caption || 'Untitled'}</p>
+                                <p className="text-gray-500 text-sm">Order: {item.order + 1}</p>
                             </div>
                         </div>
                     ))}
@@ -286,8 +292,8 @@ export default function PortfolioPage() {
                 <ul className="text-gray-400 text-sm space-y-1">
                     <li>• Use high-quality images (recommended: 1920x1280px or larger)</li>
                     <li>• Showcase variety - different styles, settings, and subjects</li>
-                    <li>• Only published items will be visible to clients</li>
-                    <li>• Drag to reorder your portfolio items</li>
+                    <li>• Your portfolio is visible to all clients on the platform</li>
+                    <li>• Maximum {maxItems} portfolio items per photographer</li>
                 </ul>
             </div>
         </div>

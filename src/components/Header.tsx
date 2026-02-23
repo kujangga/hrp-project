@@ -17,7 +17,7 @@ const navLinks = [
 function getDashboardPath(role: string) {
     switch (role) {
         case "ADMIN": return "/admin";
-        case "PHOTOGRAPHER": return "/dashboard";
+        case "TALENT": return "/dashboard";
         case "VENDOR": return "/vendor";
         default: return "/";
     }
@@ -26,7 +26,7 @@ function getDashboardPath(role: string) {
 function getRoleBadge(role: string) {
     switch (role) {
         case "ADMIN": return { label: "Admin", color: "from-red-500 to-orange-500" };
-        case "PHOTOGRAPHER": return { label: "Photographer", color: "from-pink-500 to-rose-500" };
+        case "TALENT": return { label: "Talent", color: "from-pink-500 to-rose-500" };
         case "VENDOR": return { label: "Vendor", color: "from-purple-500 to-indigo-500" };
         default: return { label: role, color: "from-gray-500 to-gray-600" };
     }
