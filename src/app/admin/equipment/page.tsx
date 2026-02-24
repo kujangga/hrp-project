@@ -1,24 +1,43 @@
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import Image from 'next/image';
+import { Suspense } from 'react';
 import {
     Plus,
-    Search,
     Package,
     MoreVertical
 } from 'lucide-react';
+import AdminFilterBar from '@/components/admin/AdminFilterBar';
 
-async function getEquipment() {
+interface PageProps {
+    searchParams: Promise<{ category?: string; search?: string }>;
+}
+
+async function getEquipment(filters: { category?: string; search?: string }) {
+    const where: Record<string, unknown> = {};
+
+    if (filters.category) {
+        where.category = filters.category;
+    }
+
+    if (filters.search) {
+        where.OR = [
+            { name: { contains: filters.search, mode: 'insensitive' } },
+            { description: { contains: filters.search, mode: 'insensitive' } },
+            { brand: { contains: filters.search, mode: 'insensitive' } },
+        ];
+    }
+
     return prisma.equipment.findMany({
-        include: {
-            location: true
-        },
+        where,
+        include: { location: true },
         orderBy: { createdAt: 'desc' }
     });
 }
 
-export default async function EquipmentAdminPage() {
-    const equipment = await getEquipment();
+export default async function EquipmentAdminPage({ searchParams }: PageProps) {
+    const params = await searchParams;
+    const equipment = await getEquipment(params);
 
     const categoryColors: Record<string, string> = {
         'camera': 'bg-purple-500/20 text-purple-400',
@@ -27,6 +46,15 @@ export default async function EquipmentAdminPage() {
         'drone': 'bg-cyan-500/20 text-cyan-400',
         'accessory': 'bg-gray-500/20 text-gray-400',
     };
+
+    const categoryOptions = [
+        { label: 'All', value: '' },
+        { label: 'Camera', value: 'camera' },
+        { label: 'Lens', value: 'lens' },
+        { label: 'Lighting', value: 'lighting' },
+        { label: 'Drone', value: 'drone' },
+        { label: 'Accessory', value: 'accessory' },
+    ];
 
     return (
         <div className="space-y-6">
@@ -46,36 +74,22 @@ export default async function EquipmentAdminPage() {
             </div>
 
             {/* Filters Bar */}
-            <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
-                    <input
-                        type="text"
-                        placeholder="Search equipment..."
-                        className="w-full pl-12 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500/50 transition-all"
-                    />
-                </div>
-
-                <div className="flex gap-2 flex-wrap">
-                    {['All', 'Camera', 'Lens', 'Lighting', 'Drone', 'Accessory'].map((cat) => (
-                        <button
-                            key={cat}
-                            className={`px-4 py-3 rounded-xl text-sm font-medium transition-all ${cat === 'All'
-                                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                                    : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-white'
-                                }`}
-                        >
-                            {cat}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            <Suspense fallback={<div className="h-14 rounded-xl bg-white/5 animate-pulse" />}>
+                <AdminFilterBar
+                    searchPlaceholder="Search equipment..."
+                    filterOptions={categoryOptions}
+                    filterParamName="category"
+                    currentFilter={params.category}
+                    currentSearch={params.search}
+                    accentColor="cyan"
+                />
+            </Suspense>
 
             {/* Stats Summary */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="rounded-xl bg-white/5 border border-white/10 p-4">
                     <p className="text-2xl font-bold text-white">{equipment.length}</p>
-                    <p className="text-gray-500 text-sm">Total Equipment</p>
+                    <p className="text-gray-500 text-sm">{params.category || params.search ? 'Matching' : 'Total'} Equipment</p>
                 </div>
                 <div className="rounded-xl bg-white/5 border border-white/10 p-4">
                     <p className="text-2xl font-bold text-emerald-400">{equipment.filter(e => e.status === 'AVAILABLE').length}</p>
@@ -91,20 +105,28 @@ export default async function EquipmentAdminPage() {
                 </div>
             </div>
 
-            {/* Equipment Grid */}
+            {/* Equipment Table */}
             <div className="rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 overflow-hidden">
                 {equipment.length === 0 ? (
                     <div className="px-6 py-16 text-center">
                         <Package className="mx-auto text-gray-600 mb-4" size={48} />
-                        <h3 className="text-xl font-semibold text-white mb-2">No Equipment Yet</h3>
-                        <p className="text-gray-400 mb-6">Start building your inventory by adding equipment.</p>
-                        <Link
-                            href="/admin/equipment/new"
-                            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-medium"
-                        >
-                            <Plus size={20} />
-                            Add Equipment
-                        </Link>
+                        <h3 className="text-xl font-semibold text-white mb-2">
+                            {params.category || params.search ? 'No Matching Equipment' : 'No Equipment Yet'}
+                        </h3>
+                        <p className="text-gray-400 mb-6">
+                            {params.category || params.search
+                                ? 'Try adjusting your filters.'
+                                : 'Start building your inventory by adding equipment.'}
+                        </p>
+                        {!params.category && !params.search && (
+                            <Link
+                                href="/admin/equipment/new"
+                                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-medium"
+                            >
+                                <Plus size={20} />
+                                Add Equipment
+                            </Link>
+                        )}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">

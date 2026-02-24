@@ -1,16 +1,36 @@
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import Image from 'next/image';
+import { Suspense } from 'react';
 import {
     Plus,
-    Search,
     Video,
     MapPin,
     MoreVertical
 } from 'lucide-react';
+import AdminFilterBar from '@/components/admin/AdminFilterBar';
 
-async function getVideographers() {
+interface PageProps {
+    searchParams: Promise<{ grade?: string; search?: string }>;
+}
+
+async function getVideographers(filters: { grade?: string; search?: string }) {
+    const where: Record<string, unknown> = {};
+
+    if (filters.grade) {
+        where.grade = filters.grade;
+    }
+
+    if (filters.search) {
+        where.OR = [
+            { name: { contains: filters.search, mode: 'insensitive' } },
+            { bio: { contains: filters.search, mode: 'insensitive' } },
+            { phone: { contains: filters.search } },
+        ];
+    }
+
     return prisma.videographer.findMany({
+        where,
         include: {
             location: true,
             portfolios: {
@@ -22,8 +42,9 @@ async function getVideographers() {
     });
 }
 
-export default async function VideographersPage() {
-    const videographers = await getVideographers();
+export default async function VideographersPage({ searchParams }: PageProps) {
+    const params = await searchParams;
+    const videographers = await getVideographers(params);
 
     const gradeColors: Record<string, string> = {
         'A': 'bg-gradient-to-r from-amber-400 to-yellow-500 text-black',
@@ -32,6 +53,15 @@ export default async function VideographersPage() {
         'D': 'bg-gradient-to-r from-emerald-500 to-green-600 text-white',
         'E': 'bg-gradient-to-r from-gray-500 to-gray-600 text-white',
     };
+
+    const gradeOptions = [
+        { label: 'All Grades', value: '' },
+        { label: 'Grade A', value: 'A' },
+        { label: 'Grade B', value: 'B' },
+        { label: 'Grade C', value: 'C' },
+        { label: 'Grade D', value: 'D' },
+        { label: 'Grade E', value: 'E' },
+    ];
 
     return (
         <div className="space-y-6">
@@ -51,36 +81,22 @@ export default async function VideographersPage() {
             </div>
 
             {/* Filters Bar */}
-            <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
-                    <input
-                        type="text"
-                        placeholder="Search videographers..."
-                        className="w-full pl-12 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-pink-500/50 focus:ring-2 focus:ring-pink-500/20 transition-all"
-                    />
-                </div>
-
-                <div className="flex gap-2">
-                    {['All', 'A', 'B', 'C', 'D', 'E'].map((grade) => (
-                        <button
-                            key={grade}
-                            className={`px-4 py-3 rounded-xl text-sm font-medium transition-all ${grade === 'All'
-                                    ? 'bg-pink-500/20 text-pink-400 border border-pink-500/30'
-                                    : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10 hover:text-white'
-                                }`}
-                        >
-                            {grade === 'All' ? 'All Grades' : `Grade ${grade}`}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            <Suspense fallback={<div className="h-14 rounded-xl bg-white/5 animate-pulse" />}>
+                <AdminFilterBar
+                    searchPlaceholder="Search videographers..."
+                    filterOptions={gradeOptions}
+                    filterParamName="grade"
+                    currentFilter={params.grade}
+                    currentSearch={params.search}
+                    accentColor="pink"
+                />
+            </Suspense>
 
             {/* Stats Summary */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="rounded-xl bg-white/5 border border-white/10 p-4">
                     <p className="text-2xl font-bold text-white">{videographers.length}</p>
-                    <p className="text-gray-500 text-sm">Total Videographers</p>
+                    <p className="text-gray-500 text-sm">{params.grade || params.search ? 'Matching' : 'Total'} Videographers</p>
                 </div>
                 <div className="rounded-xl bg-white/5 border border-white/10 p-4">
                     <p className="text-2xl font-bold text-emerald-400">{videographers.filter(v => v.status === 'PUBLISHED').length}</p>
@@ -101,15 +117,23 @@ export default async function VideographersPage() {
                 {videographers.length === 0 ? (
                     <div className="px-6 py-16 text-center">
                         <Video className="mx-auto text-gray-600 mb-4" size={48} />
-                        <h3 className="text-xl font-semibold text-white mb-2">No Videographers Yet</h3>
-                        <p className="text-gray-400 mb-6">Start building your talent pool by adding your first videographer.</p>
-                        <Link
-                            href="/admin/videographers/new"
-                            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 text-white font-medium"
-                        >
-                            <Plus size={20} />
-                            Add Videographer
-                        </Link>
+                        <h3 className="text-xl font-semibold text-white mb-2">
+                            {params.grade || params.search ? 'No Matching Videographers' : 'No Videographers Yet'}
+                        </h3>
+                        <p className="text-gray-400 mb-6">
+                            {params.grade || params.search
+                                ? 'Try adjusting your filters.'
+                                : 'Start building your talent pool by adding your first videographer.'}
+                        </p>
+                        {!params.grade && !params.search && (
+                            <Link
+                                href="/admin/videographers/new"
+                                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 text-white font-medium"
+                            >
+                                <Plus size={20} />
+                                Add Videographer
+                            </Link>
+                        )}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
