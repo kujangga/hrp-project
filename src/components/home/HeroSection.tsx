@@ -20,7 +20,7 @@ const HERO_IMAGES = [
         rotate: 3,
     },
     {
-        src: "https://images.unsplash.com/photo-1596402187264-98027147f594?q=80&w=600&auto=format&fit=crop",
+        src: "https://images.unsplash.com/photo-1705905343745-6d901a93e946?q=80&w=600&auto=format&fit=crop",
         name: "Borobudur Temple",
         location: "Magelang, Indonesia",
         rotate: -3,

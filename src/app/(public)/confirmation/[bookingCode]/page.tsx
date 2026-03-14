@@ -3,9 +3,18 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle, Copy, ArrowRight, Calendar, MapPin, Mail, Phone, User, Package } from "lucide-react";
+import { CheckCircle, Copy, ArrowRight, Calendar, MapPin, Mail, Phone, User, Package, Loader2 } from "lucide-react";
 import { formatPrice, formatDate } from "@/lib/utils";
-import { CartItem } from "@/contexts/BookingContext";
+
+interface BookingItem {
+    itemType: string;
+    itemName: string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+    duration: number;
+    durationType: string;
+}
 
 interface BookingData {
     bookingCode: string;
@@ -13,14 +22,13 @@ interface BookingData {
     customerEmail: string;
     customerPhone: string;
     eventDate: string;
-    eventLocation: string;
     eventDetails: string;
-    specialRequests: string;
-    paymentMethod: string;
-    items: CartItem[];
+    location: { name: string } | null;
     subtotal: number;
     tax: number;
     total: number;
+    status: string;
+    items: BookingItem[];
     createdAt: string;
 }
 
@@ -28,16 +36,24 @@ export default function ConfirmationPage() {
     const params = useParams();
     const bookingCode = params.bookingCode as string;
     const [booking, setBooking] = useState<BookingData | null>(null);
+    const [loading, setLoading] = useState(true);
     const [copied, setCopied] = useState(false);
 
     useEffect(() => {
-        const savedBooking = localStorage.getItem("hrp-last-booking");
-        if (savedBooking) {
-            const data = JSON.parse(savedBooking);
-            if (data.bookingCode === bookingCode) {
-                setBooking(data);
+        async function fetchBooking() {
+            try {
+                const res = await fetch(`/api/track/${bookingCode}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setBooking(data);
+                }
+            } catch {
+                // booking not found
+            } finally {
+                setLoading(false);
             }
         }
+        fetchBooking();
     }, [bookingCode]);
 
     const handleCopy = () => {
@@ -46,12 +62,21 @@ export default function ConfirmationPage() {
         setTimeout(() => setCopied(false), 2000);
     };
 
+    if (loading) {
+        return (
+            <div className="section-container py-20 text-center">
+                <Loader2 className="w-10 h-10 text-purple-400 animate-spin mx-auto mb-4" />
+                <p className="text-white/60">Loading booking details...</p>
+            </div>
+        );
+    }
+
     if (!booking) {
         return (
             <div className="section-container py-20 text-center">
                 <h1 className="text-2xl font-bold mb-4">Booking Not Found</h1>
                 <p className="text-white/60 mb-8">
-                    We could not find the booking details. Please check your email for confirmation.
+                    We could not find the booking details. The booking code may be invalid.
                 </p>
                 <Link href="/" className="btn-primary inline-flex items-center gap-2">
                     Return to Home
@@ -106,13 +131,17 @@ export default function ConfirmationPage() {
                                 <Calendar className="w-4 h-4 text-white/50" />
                                 <span>{formatDate(booking.eventDate)}</span>
                             </div>
-                            <div className="flex items-center gap-3 text-sm">
-                                <MapPin className="w-4 h-4 text-white/50" />
-                                <span>{booking.eventLocation}</span>
-                            </div>
-                            <div className="pt-2 border-t border-white/10">
-                                <p className="text-sm text-white/70">{booking.eventDetails}</p>
-                            </div>
+                            {booking.location && (
+                                <div className="flex items-center gap-3 text-sm">
+                                    <MapPin className="w-4 h-4 text-white/50" />
+                                    <span>{booking.location.name}</span>
+                                </div>
+                            )}
+                            {booking.eventDetails && (
+                                <div className="pt-2 border-t border-white/10">
+                                    <p className="text-sm text-white/70">{booking.eventDetails}</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -144,13 +173,13 @@ export default function ConfirmationPage() {
                         {booking.items.map((item, idx) => (
                             <div key={idx} className="flex justify-between items-center py-2 border-b border-white/5 last:border-b-0">
                                 <div>
-                                    <p className="font-medium">{item.name}</p>
+                                    <p className="font-medium">{item.itemName}</p>
                                     <p className="text-sm text-white/50">
-                                        {item.quantity}x • {item.duration} day{item.duration > 1 ? "s" : ""} • {item.type}
+                                        {item.quantity}x • {item.duration} {item.durationType}{item.duration > 1 ? "s" : ""} • {item.itemType}
                                     </p>
                                 </div>
                                 <span className="font-medium">
-                                    {formatPrice(item.price * item.quantity * item.duration)}
+                                    {formatPrice(item.totalPrice)}
                                 </span>
                             </div>
                         ))}
@@ -162,11 +191,11 @@ export default function ConfirmationPage() {
                             <span>{formatPrice(booking.subtotal)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span className="text-white/60">Tax (11%)</span>
+                            <span className="text-white/60">Tax</span>
                             <span>{formatPrice(booking.tax)}</span>
                         </div>
                         <div className="flex justify-between pt-2 border-t border-white/10">
-                            <span className="font-semibold">Total Paid</span>
+                            <span className="font-semibold">Total</span>
                             <span className="text-xl font-bold text-accent-gold">{formatPrice(booking.total)}</span>
                         </div>
                     </div>

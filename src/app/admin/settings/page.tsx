@@ -36,7 +36,7 @@ export default function SettingsPage() {
     const [showAddForm, setShowAddForm] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
-    // General settings (client-side only for now)
+    // General settings
     const [settings, setSettings] = useState({
         siteName: 'HRP Marketplace',
         siteDescription: 'Professional photographer and videographer marketplace',
@@ -48,9 +48,20 @@ export default function SettingsPage() {
         smsNotifications: false,
     });
 
-    // Fetch locations from API
+    // Password change state
+    const [passwordData, setPasswordData] = useState({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+    });
+    const [passwordError, setPasswordError] = useState('');
+    const [passwordSuccess, setPasswordSuccess] = useState('');
+    const [changingPassword, setChangingPassword] = useState(false);
+
+    // Fetch locations and settings from API
     useEffect(() => {
         fetchLocations();
+        fetchSettings();
     }, []);
 
     const fetchLocations = async () => {
@@ -105,11 +116,77 @@ export default function SettingsPage() {
     const handleSaveGeneral = async () => {
         setIsSaving(true);
         setSaved(false);
-        // Simulate save (no Settings model in DB yet)
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setIsSaving(false);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+        try {
+            const res = await fetch('/api/admin/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            });
+            if (res.ok) {
+                setSaved(true);
+                setTimeout(() => setSaved(false), 3000);
+            }
+        } catch (error) {
+            console.error('Error saving settings:', error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const fetchSettings = async () => {
+        try {
+            const res = await fetch('/api/admin/settings');
+            if (res.ok) {
+                const data = await res.json();
+                setSettings(prev => ({ ...prev, ...data }));
+            }
+        } catch {
+            // use defaults
+        }
+    };
+
+    const handleChangePassword = async () => {
+        setPasswordError('');
+        setPasswordSuccess('');
+
+        if (!passwordData.currentPassword || !passwordData.newPassword) {
+            setPasswordError('Please fill in all password fields');
+            return;
+        }
+        if (passwordData.newPassword.length < 6) {
+            setPasswordError('New password must be at least 6 characters');
+            return;
+        }
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+            setPasswordError('New passwords do not match');
+            return;
+        }
+
+        setChangingPassword(true);
+        try {
+            const res = await fetch('/api/admin/change-password', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    currentPassword: passwordData.currentPassword,
+                    newPassword: passwordData.newPassword
+                })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                setPasswordError(data.error || 'Failed to change password');
+            } else {
+                setPasswordSuccess('Password updated successfully!');
+                setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                setTimeout(() => setPasswordSuccess(''), 5000);
+            }
+        } catch {
+            setPasswordError('An error occurred. Please try again.');
+        } finally {
+            setChangingPassword(false);
+        }
     };
 
     const tabs = [
@@ -408,39 +485,50 @@ export default function SettingsPage() {
                                     <div className="p-4 rounded-xl bg-white/5 border border-white/10">
                                         <h3 className="text-white font-medium mb-2">Change Password</h3>
                                         <p className="text-gray-500 text-sm mb-4">Update your admin account password</p>
+
+                                        {passwordError && (
+                                            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                                                {passwordError}
+                                            </div>
+                                        )}
+                                        {passwordSuccess && (
+                                            <div className="mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm">
+                                                {passwordSuccess}
+                                            </div>
+                                        )}
+
                                         <div className="grid gap-4 max-w-md">
                                             <input
                                                 type="password"
                                                 placeholder="Current password"
+                                                value={passwordData.currentPassword}
+                                                onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                                                 className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 transition-all"
                                             />
                                             <input
                                                 type="password"
-                                                placeholder="New password"
+                                                placeholder="New password (min. 6 characters)"
+                                                value={passwordData.newPassword}
+                                                onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                                                 className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 transition-all"
                                             />
                                             <input
                                                 type="password"
                                                 placeholder="Confirm new password"
+                                                value={passwordData.confirmPassword}
+                                                onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                                                 className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 transition-all"
                                             />
-                                            <button className="w-fit px-5 py-2.5 rounded-xl bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors font-medium">
-                                                Update Password
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                                        <h3 className="text-white font-medium mb-2">Database</h3>
-                                        <p className="text-gray-500 text-sm mb-4">Manage your application database</p>
-                                        <div className="flex flex-wrap gap-3">
-                                            <button className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-colors">
-                                                <Database size={16} />
-                                                Backup Database
-                                            </button>
-                                            <button className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors">
-                                                <Database size={16} />
-                                                Clear Cache
+                                            <button
+                                                onClick={handleChangePassword}
+                                                disabled={changingPassword}
+                                                className="w-fit px-5 py-2.5 rounded-xl bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+                                            >
+                                                {changingPassword ? (
+                                                    <><Loader2 size={16} className="animate-spin" /> Updating...</>
+                                                ) : (
+                                                    'Update Password'
+                                                )}
                                             </button>
                                         </div>
                                     </div>

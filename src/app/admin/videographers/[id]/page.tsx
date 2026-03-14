@@ -26,6 +26,11 @@ interface Videographer {
     locationId: string | null;
 }
 
+interface Location {
+    id: string;
+    name: string;
+}
+
 export default function EditVideographerPage({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = use(params);
     const router = useRouter();
@@ -34,6 +39,7 @@ export default function EditVideographerPage({ params }: { params: Promise<{ id:
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [error, setError] = useState('');
+    const [locations, setLocations] = useState<Location[]>([]);
 
     const [formData, setFormData] = useState({
         name: '',
@@ -44,15 +50,19 @@ export default function EditVideographerPage({ params }: { params: Promise<{ id:
         hourlyRate: '',
         dailyRate: '',
         profileImage: '',
-        status: 'DRAFT'
+        status: 'DRAFT',
+        locationId: ''
     });
 
     useEffect(() => {
-        async function fetchVideographer() {
+        async function fetchData() {
             try {
-                const response = await fetch(`/api/admin/videographers/${resolvedParams.id}`);
-                if (!response.ok) throw new Error('Not found');
-                const data: Videographer = await response.json();
+                const [vidRes, locRes] = await Promise.all([
+                    fetch(`/api/admin/videographers/${resolvedParams.id}`),
+                    fetch('/api/admin/locations')
+                ]);
+                if (!vidRes.ok) throw new Error('Not found');
+                const data: Videographer = await vidRes.json();
                 setFormData({
                     name: data.name,
                     bio: data.bio || '',
@@ -62,15 +72,19 @@ export default function EditVideographerPage({ params }: { params: Promise<{ id:
                     hourlyRate: data.hourlyRate.toString(),
                     dailyRate: data.dailyRate.toString(),
                     profileImage: data.profileImage || '',
-                    status: data.status
+                    status: data.status,
+                    locationId: data.locationId || ''
                 });
+                if (locRes.ok) {
+                    setLocations(await locRes.json());
+                }
             } catch {
                 setError('Videographer not found');
             } finally {
                 setIsLoading(false);
             }
         }
-        fetchVideographer();
+        fetchData();
     }, [resolvedParams.id]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -305,6 +319,26 @@ export default function EditVideographerPage({ params }: { params: Promise<{ id:
                             rows={4}
                             className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-pink-500/50 transition-all resize-none"
                         />
+                    </div>
+
+                    {/* Location */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Location
+                        </label>
+                        <select
+                            name="locationId"
+                            value={formData.locationId}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-pink-500/50 transition-all appearance-none"
+                        >
+                            <option value="" className="bg-[#1a1a2e]">— No Location —</option>
+                            {locations.map((loc) => (
+                                <option key={loc.id} value={loc.id} className="bg-[#1a1a2e]">
+                                    {loc.name}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                 </div>
 

@@ -1,7 +1,11 @@
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export async function GET() {
+    const authError = await requireAdmin();
+    if (authError) return authError;
+
     try {
         const transport = await prisma.transport.findMany({
             include: {
@@ -20,6 +24,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+    const authError = await requireAdmin();
+    if (authError) return authError;
+
     try {
         const body = await request.json();
 

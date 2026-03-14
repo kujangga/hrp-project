@@ -14,6 +14,10 @@ import {
 } from 'lucide-react';
 
 async function getStats() {
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
     const [
         photographerCount,
         videographerCount,
@@ -21,7 +25,10 @@ async function getStats() {
         transportCount,
         bookingCount,
         pendingBookings,
-        recentBookings
+        recentBookings,
+        thisMonthBookings,
+        lastMonthBookings,
+        totalRevenue
     ] = await Promise.all([
         prisma.photographer.count(),
         prisma.videographer.count(),
@@ -35,8 +42,22 @@ async function getStats() {
             include: {
                 items: true
             }
+        }),
+        prisma.booking.count({ where: { createdAt: { gte: thisMonthStart } } }),
+        prisma.booking.count({ where: { createdAt: { gte: lastMonthStart, lt: thisMonthStart } } }),
+        prisma.booking.aggregate({
+            _sum: { total: true },
+            where: { status: { in: ['CONFIRMED', 'COMPLETED'] } }
         })
     ]);
+
+    // Calculate booking trend
+    let bookingTrend = 0;
+    if (lastMonthBookings > 0) {
+        bookingTrend = Math.round(((thisMonthBookings - lastMonthBookings) / lastMonthBookings) * 100);
+    } else if (thisMonthBookings > 0) {
+        bookingTrend = 100;
+    }
 
     return {
         photographerCount,
@@ -45,7 +66,9 @@ async function getStats() {
         transportCount,
         bookingCount,
         pendingBookings,
-        recentBookings
+        recentBookings,
+        bookingTrend,
+        totalRevenue: totalRevenue._sum.total || 0
     };
 }
 
@@ -59,8 +82,6 @@ export default async function AdminDashboard() {
             icon: Camera,
             href: '/admin/photographers',
             color: 'from-purple-500 to-indigo-600',
-            trend: '+12%',
-            trendUp: true
         },
         {
             label: 'Videographers',
@@ -68,8 +89,6 @@ export default async function AdminDashboard() {
             icon: Video,
             href: '/admin/videographers',
             color: 'from-pink-500 to-rose-600',
-            trend: '+8%',
-            trendUp: true
         },
         {
             label: 'Equipment',
@@ -77,8 +96,6 @@ export default async function AdminDashboard() {
             icon: Package,
             href: '/admin/equipment',
             color: 'from-cyan-500 to-blue-600',
-            trend: '+5%',
-            trendUp: true
         },
         {
             label: 'Transport',
@@ -86,8 +103,6 @@ export default async function AdminDashboard() {
             icon: Truck,
             href: '/admin/transport',
             color: 'from-amber-500 to-orange-600',
-            trend: '-2%',
-            trendUp: false
         },
     ];
 
@@ -114,10 +129,6 @@ export default async function AdminDashboard() {
                             <div className="flex items-center justify-between mb-4">
                                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-lg`}>
                                     <stat.icon size={24} className="text-white" />
-                                </div>
-                                <div className={`flex items-center gap-1 text-sm ${stat.trendUp ? 'text-emerald-400' : 'text-red-400'}`}>
-                                    {stat.trendUp ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-                                    {stat.trend}
                                 </div>
                             </div>
                             <p className="text-4xl font-bold text-white mb-1">{stat.value}</p>
@@ -204,9 +215,19 @@ export default async function AdminDashboard() {
                                 <TrendingUp size={28} className="text-white" />
                             </div>
                             <div>
-                                <p className="text-4xl font-bold text-white">{stats.bookingCount}</p>
-                                <p className="text-emerald-400/80">Total Bookings</p>
+                                <p className="text-2xl font-bold text-white">Rp {stats.totalRevenue.toLocaleString('id-ID')}</p>
+                                <p className="text-emerald-400/80">Total Revenue</p>
                             </div>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2 text-sm">
+                            <ShoppingCart size={14} className="text-gray-500" />
+                            <span className="text-gray-400">{stats.bookingCount} total bookings</span>
+                            {stats.bookingTrend !== 0 && (
+                                <span className={`ml-auto flex items-center gap-1 ${stats.bookingTrend > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                    {stats.bookingTrend > 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                                    {stats.bookingTrend > 0 ? '+' : ''}{stats.bookingTrend}% this month
+                                </span>
+                            )}
                         </div>
                     </div>
 

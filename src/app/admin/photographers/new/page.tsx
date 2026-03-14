@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -11,10 +11,16 @@ import {
     CheckCircle
 } from 'lucide-react';
 
+interface Location {
+    id: string;
+    name: string;
+}
+
 export default function NewPhotographerPage() {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [locations, setLocations] = useState<Location[]>([]);
 
     const [formData, setFormData] = useState({
         name: '',
@@ -25,8 +31,16 @@ export default function NewPhotographerPage() {
         hourlyRate: '',
         dailyRate: '',
         profileImage: '',
-        status: 'DRAFT'
+        status: 'DRAFT',
+        locationId: ''
     });
+
+    useEffect(() => {
+        fetch('/api/admin/locations')
+            .then(res => res.ok ? res.json() : [])
+            .then(data => setLocations(data))
+            .catch(() => {});
+    }, []);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -45,7 +59,8 @@ export default function NewPhotographerPage() {
                 body: JSON.stringify({
                     ...formData,
                     hourlyRate: parseFloat(formData.hourlyRate) || 0,
-                    dailyRate: parseFloat(formData.dailyRate) || 0
+                    dailyRate: parseFloat(formData.dailyRate) || 0,
+                    locationId: formData.locationId || null
                 })
             });
 
@@ -169,6 +184,26 @@ export default function NewPhotographerPage() {
                             placeholder="Brief description about the photographer's experience and style..."
                             className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 transition-all resize-none"
                         />
+                    </div>
+
+                    {/* Location */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Location
+                        </label>
+                        <select
+                            name="locationId"
+                            value={formData.locationId}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-purple-500/50 transition-all appearance-none"
+                        >
+                            <option value="" className="bg-[#1a1a2e]">— Select Location —</option>
+                            {locations.map((loc) => (
+                                <option key={loc.id} value={loc.id} className="bg-[#1a1a2e]">
+                                    {loc.name}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                 </div>
 

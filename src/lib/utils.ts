@@ -45,9 +45,15 @@ export function getGradeDescription(grade: string): string {
 
 // Generate booking code
 export function generateBookingCode(): string {
-    const year = new Date().getFullYear();
-    const random = Math.random().toString(36).substring(2, 7).toUpperCase();
-    return `HRP-${year}-${random}`;
+    const now = new Date();
+    const year = now.getFullYear().toString().slice(-2);
+    const month = (now.getMonth() + 1).toString().padStart(2, '0');
+    const day = now.getDate().toString().padStart(2, '0');
+    // Use crypto for secure randomness (10 hex chars = ~1 trillion combinations)
+    const array = new Uint8Array(5);
+    crypto.getRandomValues(array);
+    const random = Array.from(array, b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    return `HRP-${year}${month}${day}-${random}`;
 }
 
 // Format date for display
